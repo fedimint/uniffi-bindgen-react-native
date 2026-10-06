@@ -270,7 +270,7 @@ fn find_library_name(metadata: &Metadata, manifest_path: &Utf8Path) -> Option<St
 }
 
 fn find_package_name(metadata: &Metadata, manifest_path: &Utf8Path) -> Option<String> {
-    find_package(metadata, manifest_path).map(|package| package.name.clone())
+    find_package(metadata, manifest_path).map(|package| package.name.to_string())
 }
 
 #[cfg(test)]

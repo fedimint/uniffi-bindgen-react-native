@@ -5,6 +5,18 @@
 [//]: # (## ⚠️ Breaking Changes)
 [//]: # (**Full Changelog**: https://github.com/jhugman/uniffi-bindgen-react-native/compare/{{previous}}...{{current}})
 
+## 🦊 What's Changed
+
+- Bumped `uniffi-rs` to [0.32](https://github.com/mozilla/uniffi-rs/blob/main/CHANGELOG.md). Two of the features 0.32 adds are now supported: recursive enums (self-referential, mutually recursive, or cycling through records) and `[ByRef] bytes` arguments, which reach Rust as `&[u8]` and are borrowed for the duration of the call instead of being copied through a `RustBuffer` ([#409](https://github.com/jhugman/uniffi-bindgen-react-native/pull/409)).
+- `--config` accepts a 0.32 [global config file](https://mozilla.github.io/uniffi-rs/next/configuration.html) (`[crate-roots]`, `[defaults]`, `[crates.<name>]`) as well as the flat `uniffi.toml` override this project has always taken, and per-crate binding options are handed to the pipeline as `[bindings.react-native]`, so the documented `[bindings.typescript]` keys — custom types, renames, excludes — reach it ([#409](https://github.com/jhugman/uniffi-bindgen-react-native/pull/409)).
+
+## ⚠️ Breaking Changes
+
+- `[ByRef] bytes` UDL arguments now mean `&[u8]` rather than `&Vec<u8>` on the Rust side, as they do upstream, and they cross the FFI as a `ForeignBytes` (pointer + length) rather than a `RustBuffer`. This is the one case where bindings generated against 0.31.x do not work with the new runtime: 0.31 lowers such an argument as a `RustBuffer`. Everything else is unaffected — `UNIFFI_CONTRACT_VERSION` is still 30 — but regenerate to be safe. Rust implementations of these arguments must take `&[u8]`; proc-macro signatures are unchanged. Generation is rejected for borrowed bytes on a callback-interface method or a Rust-async call, and for a callable that also takes a callback-interface argument — where Rust may re-enter JS during the call while the bytes are borrowed and JS could mutate or detach them — with an error naming the callable; use an owned `Vec<u8>` instead.
+- A `--config` file is now also applied when generating the TypeScript bindings, and `--library` no longer conflicts with `--config`. If it has a `[crate-roots]`, `[defaults]` or `[crates]` table it is read as a 0.32 global config; otherwise it is applied to every crate as before. Upstream `uniffi-bindgen` warns about and ignores flat files, so this project keeps a compatibility path that upstream does not.
+- A missing `--config` path is now an error rather than being silently ignored, and unknown keys under `[bindings.react-native]`/`[bindings.typescript]` fail generation instead of being dropped.
+- `@ubjs/node` declares Node-API level 7, so it needs Node 16 or newer. The level is what lets it tell a detached `ArrayBuffer` from an empty one: a `&[u8]` argument whose buffer is detached during argument conversion would otherwise reach Rust as a silently empty slice.
+
 **Full Changelog**: https://github.com/jhugman/uniffi-bindgen-react-native/compare/0.31.0-6...main
 
 ---

@@ -60,7 +60,6 @@ pub(crate) fn call_ffi_function(
     registration: &Arc<crate::register::Registration>,
 ) -> Result<JsUnknown> {
     let declared_arg_count = arg_types.len();
-
     let mut call = module.prepare_call(fn_name).map_err(core_err)?;
 
     // NOTE: arguments are lowered in order, and lowering a library-owned `RustBuffer` adopts its
@@ -72,6 +71,7 @@ pub(crate) fn call_ffi_function(
         let js_val: JsUnknown = ctx.get(i)?;
         let slot = call.arg_slot(i).map_err(core_err)?;
         match desc {
+            FfiTypeDesc::ForeignBytes => {}
             FfiTypeDesc::RustBuffer => {
                 // SAFETY: `env` is the active env for this call; `js_val` is the argument
                 // value just read from `ctx`, and `from_bytes_ptr` was resolved at
@@ -198,6 +198,26 @@ pub(crate) fn call_ffi_function(
         let status_ptr = &mut rust_call_status as *mut RustCallStatusC;
         if let Some(rcs_slot) = call.rust_call_status_slot() {
             slot::write_pointer(rcs_slot, status_ptr as *const c_void);
+        }
+    }
+
+    // Borrowed pointers are taken last, with no JS-visible conversion after them: between
+    // here and `module.call` nothing runs JS, so a getter cannot invalidate a pointer we hold.
+    for (i, desc) in arg_types.iter().enumerate() {
+        if matches!(desc, FfiTypeDesc::ForeignBytes) {
+            let value: JsUnknown = ctx.get(i)?;
+            // SAFETY: `env` is the active env for this call, `value` is the argument just
+            // read from `ctx`, and `capacity_symbol` belongs to this `register()` call and
+            // so to this env.
+            let bytes = unsafe {
+                napi_utils::borrow_foreign_bytes(
+                    env.raw(),
+                    value.raw(),
+                    &registration.capacity_symbol,
+                )?
+            };
+            slot::write_foreign_bytes(call.arg_slot(i).map_err(core_err)?, bytes)
+                .map_err(core_err)?;
         }
     }
 
