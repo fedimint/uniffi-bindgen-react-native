@@ -1,4 +1,7 @@
 rust:
   repo: https://github.com/jhugman/uniffi-starter.git
-  branch: jhugman/bump-uniffi-to-0.31
+  # The head of jhugman/uniffi-starter#1, which moves the starter crate to UniFFI 0.32. No
+  # branch of that repository carries it yet, and bindings can only be generated from a
+  # library built against the UniFFI version this tool reads.
+  rev: 9e15f8f0f4b6b96f1461b90d3f4a67658a348613
   manifestPath: rust/foobar/Cargo.toml
