@@ -1,8 +1,10 @@
 name: jsi2 library
 
+# `fedimint` is this fork's long-lived branch: upstream `main` plus the
+# changes Fedimint ships.
 on:
   push:
-    branches: [main]
+    branches: [main, fedimint]
     paths:
       - "runtimes/jsi/**"
       - "runtimes/core/**"

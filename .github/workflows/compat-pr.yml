@@ -1,8 +1,12 @@
 name: Compat (PR)
 
+# `fedimint` is this fork's long-lived branch: upstream `main` plus the
+# changes Fedimint ships.
 on:
+  push:
+    branches: ["fedimint"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "fedimint"]
 
 # A stacked PR is evaluated as if it targets main, and a stack sync that
 # pushes a PR's base right after its head fires a second `pull_request`
