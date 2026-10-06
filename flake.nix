@@ -73,6 +73,13 @@
               pkg-config
             ];
 
+            # Hermes links ICU on Linux, and uses the system's own Unicode support on macOS.
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.icu ];
+
+            # Hermes rn/0.77-stable uses the fixed-width integer types without including
+            # <cstdint>, which the standard headers of GCC 15 and later no longer pull in.
+            env.CXXFLAGS = "-include cstdint";
+
             shellHook = ''
               export CARGO_TERM_COLOR=always
             '';
