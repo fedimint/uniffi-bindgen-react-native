@@ -372,11 +372,11 @@ pub(crate) fn callback_arg_layout_for(def: &CallbackDef) -> Result<ArgLayout> {
 /// `Reference` tags; geometry doesn't depend on it, so a placeholder satisfies
 /// it.
 ///
-/// Answers only for the wire vocabulary, so `None` covers four cases: an
+/// Answers only for the wire vocabulary, so `None` covers three cases: an
 /// unknown name; `Struct`, which `slot_size_align` rejects as a bare arg slot;
-/// and `VoidPointer`/`MutReference`/`ForeignBytes`, which `desc_from_name` does
-/// not build even though `slot_size_align` could size the first two. A bridge
-/// sending one of those names must map it to a wire name first.
+/// and `VoidPointer`/`MutReference`, which `desc_from_name` does not build even
+/// though `slot_size_align` could size them. A bridge sending one of those
+/// names must map it to a wire name first.
 pub fn slot_size_align_for_name(tag_name: &str) -> Option<(usize, usize)> {
     const PLACEHOLDER_NAME: &str = "_";
     let desc = desc_from_name(tag_name, Some(PLACEHOLDER_NAME)).ok()?;

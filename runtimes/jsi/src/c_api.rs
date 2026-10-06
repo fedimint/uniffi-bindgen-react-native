@@ -1319,6 +1319,13 @@ mod tests {
         assert!(ok);
         assert_eq!((size, align), (24, 8));
 
+        let name = CString::new("ForeignBytes").unwrap();
+        // SAFETY: `name` is a live NUL-terminated C string; both out params
+        // point to live, writable locals.
+        let ok = unsafe { ubrn_jsi_scalar_slot_size_align(name.as_ptr(), &mut size, &mut align) };
+        assert!(ok);
+        assert_eq!((size, align), (16, 8));
+
         // A bare Struct has no flat-slot form, and "NotATag" is not a tag at
         // all; both leave the out params alone.
         for name in ["Struct", "NotATag"] {

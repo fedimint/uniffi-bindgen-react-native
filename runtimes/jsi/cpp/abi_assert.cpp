@@ -61,6 +61,17 @@ static_assert(offsetof(UbrnRustBuffer, data) == 2 * kU64,
 static_assert(sizeof(UbrnRustBuffer) == round_up(2 * kU64 + kPtr, kU64Align),
               "RustBuffer is two u64s plus a pointer, padded to u64 alignment");
 
+// --- UbrnForeignBytes must match core::ForeignBytesC (ffi_c_types.rs) --------
+// `{ i32 len; *const u8 data }`. The pointer's own alignment puts `data` one
+// pointer in on every ABI: straight after `len` on 32-bit, after four bytes of
+// padding on 64-bit.
+static_assert(offsetof(UbrnForeignBytes, len) == 0,
+              "ForeignBytes.len is first");
+static_assert(offsetof(UbrnForeignBytes, data) == kPtr,
+              "ForeignBytes.data is one pointer in");
+static_assert(sizeof(UbrnForeignBytes) == 2 * kPtr,
+              "ForeignBytes is an i32 and a pointer, pointer-aligned");
+
 // --- Spec struct layouts must match c_api.rs's #[repr(C)] mirrors ------------
 // These structs are passed by pointer from JS-built native memory into Rust; a
 // field reorder on either side corrupts every registration. Every member is

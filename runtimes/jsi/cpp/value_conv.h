@@ -44,6 +44,8 @@ typedef enum {
   UBRN_TY_RUSTCALLSTATUS = 16, // inline RustCallStatus struct ({i8, u64, u64, ptr});
                                // appears only as a struct field (e.g. inside
                                // ForeignFutureResult<T>)
+  UBRN_TY_FOREIGNBYTES = 17,   // a borrowed `&[u8]` argument ({i32, ptr} by value);
+                               // never a return type
   // Not a type. What ubrnTagFromName answers with for a name the shim cannot
   // marshal; also marks a signature the player skips.
   UBRN_TY_UNSUPPORTED = 0xFF,
@@ -52,7 +54,7 @@ typedef enum {
 // Player tag name -> the shim's discriminant. These are core's wire names; a
 // name absent here is one the shim cannot marshal, and the whole function is
 // skipped at registration. Called once per argument at registration, so a scan
-// over 17 entries is the right shape.
+// over 18 entries is the right shape.
 inline UbrnFfiType ubrnTagFromName(std::string_view n) {
   struct Entry {
     std::string_view name;
@@ -71,6 +73,7 @@ inline UbrnFfiType ubrnTagFromName(std::string_view n) {
       {"Struct", UBRN_TY_STRUCT},
       {"Reference", UBRN_TY_REFERENCE},
       {"RustCallStatus", UBRN_TY_RUSTCALLSTATUS},
+      {"ForeignBytes", UBRN_TY_FOREIGNBYTES},
   };
   for (const auto &e : kTable) {
     if (e.name == n) {
@@ -419,4 +422,85 @@ inline UbrnRustBuffer rustBufferForArg(jsi::Runtime &rt, UbrnJsiModule *module,
 
   return ubrn_jsi_rustbuffer_from_bytes(module, ab.data(rt) + byteOffset,
                                         byteLength);
+}
+
+// ---------------------------------------------------------------------------
+// Borrowed bytes (`&[u8]` arguments)
+// ---------------------------------------------------------------------------
+
+// A JS Uint8Array lent to Rust for the length of one FFI call. Nothing is
+// copied: Rust reads the view's own storage.
+//
+// Lowering it is split in two because the storage pointer stays good only
+// until JS next runs, and marshalling a later argument can run JS (a getter on
+// a vtable object, say) that detaches or transfers the buffer.
+// `borrowedBytesForArg` validates the view where the argument sits, and
+// `capture` reads the pointer once every argument has been converted, straight
+// before the call.
+class BorrowedBytes {
+public:
+  BorrowedBytes(int32_t length, size_t offset, jsi::ArrayBuffer buffer)
+      : length_{length}, offset_{offset}, buffer_{std::move(buffer)} {}
+
+  // Read the storage pointer. Runs no JS; throws if the buffer was detached.
+  UbrnForeignBytes capture(jsi::Runtime &rt) {
+    if (length_ == 0) {
+      return UbrnForeignBytes{0, nullptr};
+    }
+    const uint8_t *data = buffer_.data(rt);
+    if (data == nullptr || buffer_.size(rt) < offset_ + (size_t)length_) {
+      throw jsi::JSError(rt, "uniffi jsi player: ForeignBytes buffer is "
+                             "detached");
+    }
+    return UbrnForeignBytes{length_, data + offset_};
+  }
+
+private:
+  int32_t length_;
+  size_t offset_;
+  jsi::ArrayBuffer buffer_;
+};
+
+// Validate a JS value being lowered into a `&[u8]` argument. The pointer
+// itself is read later, by `BorrowedBytes::capture`.
+inline BorrowedBytes borrowedBytesForArg(jsi::Runtime &rt,
+                                         const jsi::Value &v) {
+  if (!v.isObject()) {
+    throw jsi::JSError(rt,
+                       "uniffi jsi player: ForeignBytes requires a Uint8Array");
+  }
+  auto obj = v.asObject(rt);
+  auto uint8Ctor = rt.global().getPropertyAsFunction(rt, "Uint8Array");
+  if (!obj.instanceOf(rt, uint8Ctor)) {
+    throw jsi::JSError(rt,
+                       "uniffi jsi player: ForeignBytes requires a Uint8Array");
+  }
+  auto bufferObj = obj.getPropertyAsObject(rt, "buffer");
+  if (!bufferObj.isArrayBuffer(rt)) {
+    throw jsi::JSError(rt, "uniffi jsi player: ForeignBytes requires a "
+                           "non-shared ArrayBuffer");
+  }
+  auto ab = bufferObj.getArrayBuffer(rt);
+  double offset = obj.getProperty(rt, "byteOffset").asNumber();
+  double length = obj.getProperty(rt, "byteLength").asNumber();
+  double size = (double)ab.size(rt);
+  // Written so that a NaN fails every comparison and is rejected too.
+  if (!(offset >= 0) || !(length >= 0) || length > (double)INT32_MAX ||
+      !(offset <= size) || !(length <= size - offset)) {
+    throw jsi::JSError(
+        rt, "uniffi jsi player: ForeignBytes view is outside its ArrayBuffer");
+  }
+
+  // A view over an allocation that an earlier call adopted has since been
+  // freed by that callee, so lending it out would hand Rust a dangling
+  // pointer. Borrowing a view that still owns its allocation leaves it owned.
+  if (ab.hasNativeState(rt)) {
+    auto owner =
+        std::dynamic_pointer_cast<RustBufferOwner>(ab.getNativeState(rt));
+    if (owner && owner->buffer && !owner->buffer->owns()) {
+      throw jsi::JSError(rt, "uniffi jsi player: ForeignBytes argument was "
+                             "already consumed by a previous FFI call");
+    }
+  }
+  return BorrowedBytes((int32_t)length, (size_t)offset, std::move(ab));
 }

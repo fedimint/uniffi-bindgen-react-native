@@ -89,9 +89,9 @@ pub fn tag_name_of(desc: &FfiTypeDesc) -> &'static str {
 /// name that travels beside it. The name is what codegen emits and what both
 /// bridges read, so this is the single construction point for a wire type.
 ///
-/// Covers 17 of the 20 names in [`ALL_TAG_NAMES`]. `MutReference`,
-/// `ForeignBytes` and `VoidPointer` have no wire form; a bridge that marshals
-/// them maps them to a wire name itself.
+/// Covers 18 of the 20 names in [`ALL_TAG_NAMES`]. `MutReference` and
+/// `VoidPointer` have no wire form; a bridge that marshals them maps them to a
+/// wire name itself.
 pub fn desc_from_name(tag_name: &str, type_name: Option<&str>) -> Result<FfiTypeDesc> {
     match tag_name {
         "Callback" => type_name
@@ -116,6 +116,7 @@ pub fn desc_from_name(tag_name: &str, type_name: Option<&str>) -> Result<FfiType
         "Float64" => Ok(FfiTypeDesc::Float64),
         "Handle" => Ok(FfiTypeDesc::Handle),
         "RustBuffer" => Ok(FfiTypeDesc::RustBuffer),
+        "ForeignBytes" => Ok(FfiTypeDesc::ForeignBytes),
         "RustCallStatus" => Ok(FfiTypeDesc::RustCallStatus),
         other => Err(Error::UnsupportedType(format!("unknown type tag {other}"))),
     }
@@ -160,7 +161,7 @@ mod tests {
     #[test]
     fn desc_from_name_covers_exactly_the_wire_names() {
         for name in ALL_TAG_NAMES {
-            let wire_eligible = !matches!(name, "ForeignBytes" | "VoidPointer" | "MutReference");
+            let wire_eligible = !matches!(name, "VoidPointer" | "MutReference");
             // Named tags need a type name; supply one unconditionally.
             let got = desc_from_name(name, Some("N"));
             assert_eq!(got.is_ok(), wire_eligible, "wire eligibility for {name}");

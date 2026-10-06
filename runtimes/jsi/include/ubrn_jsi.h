@@ -98,6 +98,14 @@ typedef struct {
   uint8_t* data;
 } UbrnRustBuffer;
 
+// ForeignBytes mirror of core::ForeignBytesC: a borrowed byte view, which is how a
+// `&[u8]` argument crosses the FFI. MUST match field order/sizes exactly:
+// len (i32), data (*const u8).
+typedef struct {
+  int32_t len;
+  const uint8_t* data;
+} UbrnForeignBytes;
+
 UbrnRustBuffer ubrn_jsi_rustbuffer_alloc(UbrnJsiModule* m, uint64_t size);
 UbrnRustBuffer ubrn_jsi_rustbuffer_from_bytes(UbrnJsiModule* m, const uint8_t* data, size_t len);
 void ubrn_jsi_rustbuffer_free(UbrnJsiModule* m, UbrnRustBuffer buf);

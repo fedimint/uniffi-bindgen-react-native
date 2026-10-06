@@ -131,9 +131,13 @@ buildModuleObject(jsi::Runtime &rt, UbrnJsiModule *handle,
           // as native bytes; a RustBuffer arg is a JS Uint8Array that we copy
           // into a Rust-owned buffer (via rustbuffer_from_bytes) whose repr(C)
           // layout (size target-dependent) is then stored as the arg payload.
+          // A ForeignBytes arg is a JS Uint8Array whose own storage Rust
+          // borrows: it is validated in place, and its pointer is read below,
+          // once marshalling the other args can no longer run JS.
           std::vector<std::vector<uint8_t>> backing(nDeclared);
           std::vector<const void *> argPtrs(nDeclared);
           std::vector<size_t> argSizes(nDeclared);
+          std::vector<std::pair<size_t, BorrowedBytes>> borrowed;
           for (size_t i = 0; i < nDeclared; i++) {
             uint8_t tag = info.args[i].tag;
             size_t sz = info.args[i].size;
@@ -141,6 +145,8 @@ buildModuleObject(jsi::Runtime &rt, UbrnJsiModule *handle,
             if (tag == UBRN_TY_RUSTBUFFER) {
               UbrnRustBuffer rb = rustBufferForArg(rt, handle, args[i]);
               memcpy(backing[i].data(), &rb, sizeof(rb));
+            } else if (tag == UBRN_TY_FOREIGNBYTES) {
+              borrowed.emplace_back(i, borrowedBytesForArg(rt, args[i]));
             } else if (tag == UBRN_TY_REFERENCE) {
               // A vtable-pointer arg: the JS value is a plain object whose
               // properties are the struct's methods. Build the C vtable and
@@ -173,6 +179,13 @@ buildModuleObject(jsi::Runtime &rt, UbrnJsiModule *handle,
             }
             argPtrs[i] = backing[i].data();
             argSizes[i] = sz;
+          }
+
+          // Borrowed pointers are taken last: nothing between here and
+          // ubrn_jsi_call runs JS, so none of them can be invalidated.
+          for (auto &[i, bytes] : borrowed) {
+            UbrnForeignBytes fb = bytes.capture(rt);
+            memcpy(backing[i].data(), &fb, sizeof(fb));
           }
 
           RustCallStatus status{};

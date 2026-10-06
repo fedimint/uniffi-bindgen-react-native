@@ -20,14 +20,16 @@
 // big buffer per call that nothing frees (the callee only borrows a
 // `ForeignBytes`), so the delta climbs by exactly one per call.
 //
-// Why only [Jsi, Napi]: these are the only flavours that can pass the caller's
-// buffer through by pointer. On both Wasm flavours the ABI *has* to materialise
+// Why only [Jsi, Napi]: on both Wasm flavours the ABI *has* to materialise
 // the argument in linear memory — classic `Wasm`'s wasm-bindgen boundary copies
 // any `Uint8Array` argument into a module-owned `Vec<u8>` before the shim can
 // borrow it, and `wasm2`'s player copies it through `__ubrn_alloc` — so the
 // allocator moves for a borrow and for a copy alike, and the counter cannot
 // attribute the movement to the lowering. That copy is the documented design
 // there (one copy on the wasm flavours), so there is no "no copy" claim to test.
+// `Jsi2` passes the caller's buffer through by pointer too, but it frees a
+// buffer Rust returns only when the JS view over it is garbage collected, so
+// the live counts do not settle between the snapshots compared here.
 import {
   borrowedBytesChecksum,
   copyBorrowedBytes,

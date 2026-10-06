@@ -83,10 +83,10 @@ fn every_projection_of_the_tag_vocabulary_agrees() {
     );
     assert_eq!(core, node, "core FfiTypeDesc vs runtimes/napi/lib.js");
 
-    // The three tags with no wire representation never reach the shim's table.
+    // The two tags with no wire representation never reach the shim's table.
     let wire_only: BTreeSet<String> = core
         .difference(
-            &["ForeignBytes", "VoidPointer", "MutReference"]
+            &["VoidPointer", "MutReference"]
                 .into_iter()
                 .map(str::to_owned)
                 .collect(),

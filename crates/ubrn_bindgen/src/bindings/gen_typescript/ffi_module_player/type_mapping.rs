@@ -82,11 +82,11 @@ mod tests {
         ];
 
         // Tags core names but `desc_from_name` cannot build, so each bridge
-        // resolves them itself: napi maps all three directly, and the jsi shim
-        // rewrites the first two into `Reference`/`Handle`. `ForeignBytes` has
-        // no shim rewrite, so emitting it would fail a jsi registration —
-        // hence naming the exceptions here rather than accepting any of the 20.
-        const BRIDGE_RESOLVED: [&str; 3] = ["MutReference", "VoidPointer", "ForeignBytes"];
+        // resolves them itself: napi maps both directly, and the jsi shim
+        // rewrites them into `Reference`/`Handle`. A tag with neither a wire
+        // form nor a shim rewrite would fail a jsi registration — hence naming
+        // the exceptions here rather than accepting any of the 20.
+        const BRIDGE_RESOLVED: [&str; 2] = ["MutReference", "VoidPointer"];
 
         for probe in &probes {
             let emitted = ffi_type_to_player(probe);
