@@ -40,7 +40,7 @@ extern crate uniffi_runtime_wasm as _;
 
 The player instantiates a WebAssembly module, so the crate has to link one. `uniffi-runtime-wasm` exports nothing you call, so nothing references it, so the linker would drop it — the `extern crate` line forces the link. Wasm is single-threaded, so without `wasm-unstable-single-threaded` UniFFI demands `Send + Sync` on every exported object and the crate will not compile for wasm32.
 
-`ubrn build wasm2` checks all three manifest requirements before it starts, and names whichever is missing. The `extern crate` line it cannot check; see [the reference](reference.md#the-one-line-of-rust) for what a missing one looks like.
+`ubrn build wasm2` checks all three manifest requirements before it starts, and names whichever is missing; it asks for the `cdylib` only when it builds the module itself ([`--no-wasm-build`](reference.md#ubrn-build-wasm2) leaves that to you). The `extern crate` line it cannot check; see [the reference](reference.md#the-one-line-of-rust) for what a missing one looks like.
 
 Putting the dependencies behind `cfg(target_arch = "wasm32")` keeps them off your native builds, so the same crate still serves the JSI and Node.js targets unchanged.
 

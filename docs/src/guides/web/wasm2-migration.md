@@ -33,7 +33,7 @@ Nothing here is new to your project — the generated wasm crate already depende
 The `extern crate` line is the one with no counterpart. [`uniffi-runtime-wasm`](https://crates.io/crates/uniffi-runtime-wasm) exports the allocator and panic hook the player calls, and since nothing in your code references it, the linker would otherwise drop it.
 
 ```admonish warning
-`ubrn build wasm2` checks the three manifest requirements and names whichever is missing. It cannot check the `extern crate` line. Leaving it out fails later, when opening the module reports `required export "__ubrn_alloc" not found in wasm module`.
+`ubrn build wasm2` checks the three manifest requirements and names whichever is missing; it asks for the `cdylib` only when it builds the module itself ([`--no-wasm-build`](../../reference/wasm2/reference.md#ubrn-build-wasm2) leaves that to you). It cannot check the `extern crate` line. Leaving it out fails later, when opening the module reports `required export "__ubrn_alloc" not found in wasm module`.
 ```
 
 ## What leaves `ubrn.config.yaml`
