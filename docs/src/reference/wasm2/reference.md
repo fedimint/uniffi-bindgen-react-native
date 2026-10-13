@@ -46,7 +46,7 @@ uniffi-runtime-wasm = "0.31.0-5"
 uniffi_core = { version = "0.32", features = ["wasm-unstable-single-threaded"] }
 ```
 
-Each line earns its place. `cdylib` is what produces a WebAssembly module at all. `uniffi-runtime-wasm` supplies `__ubrn_alloc`, `__ubrn_free` and a panic hook, all of which the player calls and none of which JavaScript can provide. `wasm-unstable-single-threaded` drops UniFFI's `Send + Sync` requirement on exported objects, which wasm32 cannot satisfy; spelling the feature on `uniffi` rather than `uniffi_core` works too, since `uniffi` re-exports it.
+Each line earns its place. `cdylib` is what makes cargo write a WebAssembly module at all, so `ubrn build wasm2` requires it when it builds the module itself. `uniffi-runtime-wasm` supplies `__ubrn_alloc`, `__ubrn_free` and a panic hook, all of which the player calls and none of which JavaScript can provide. `wasm-unstable-single-threaded` drops UniFFI's `Send + Sync` requirement on exported objects, which wasm32 cannot satisfy; spelling the feature on `uniffi` rather than `uniffi_core` works too, since `uniffi` re-exports it.
 
 The `[target.'cfg(target_arch = "wasm32")']` block keeps all of this off your native builds, so the same crate still serves the JSI and Node.js targets.
 
@@ -85,7 +85,9 @@ Options:
           Opts out of generating the bindings and wasm-crate
 
       --no-wasm-build
-          Opts out of running cargo build for wasm32-unknown-unknown
+          Opts out of running cargo build for wasm32-unknown-unknown.
+
+          The crate then does not have to list `cdylib` in its manifest.
 
   -r, --release
           Build a release build
@@ -98,7 +100,7 @@ Options:
 ```
 
 ```admonish note
-`ubrn build wasm2` generates by default, so the `-g` / `--and-generate` flag that the other platforms need does nothing here. Use `--no-wasm-build` — not the shared `--no-cargo` flag — to reuse a module already in `target/`.
+`ubrn build wasm2` generates by default, so the `-g` / `--and-generate` flag that the other platforms need does nothing here. Use `--no-wasm-build` — not the shared `--no-cargo` flag — to reuse a module already in `target/`. The crate then does not have to list `cdylib` in its manifest: you can ask cargo for the crate type on the command line, as in `cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release`, which keeps every crate that depends on yours from building a `cdylib` it never uses.
 ```
 
 The `wasm2` section of the [configuration file](../config-yaml.md#wasm2) controls where the TypeScript lands and how the crate is built. A minimal one:
@@ -378,7 +380,7 @@ The `@ubjs/wasm/core` subpath is the environment-neutral half: `FfiType`, `Uniff
 
 | Message | Cause |
 | ------- | ----- |
-| `does not build a cdylib` | `[lib] crate-type` is missing `cdylib` |
+| `does not build a cdylib` | `[lib] crate-type` is missing `cdylib`, which `ubrn` needs when it builds the module |
 | `does not depend on uniffi-runtime-wasm` | the manifest is missing the runtime crate |
 | `resolves uniffi_core without the wasm-unstable-single-threaded feature` | the feature is not enabled for wasm32 |
 | `required export "__ubrn_alloc" not found in wasm module` | the [`extern crate` line](#the-one-line-of-rust) is missing |

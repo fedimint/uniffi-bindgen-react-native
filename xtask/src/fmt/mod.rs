@@ -132,9 +132,12 @@ impl CodeFormatter for RustArgs {
                 .arg("Cargo.toml")
                 .current_dir(root);
             if check_only {
+                // `double_must_use` fires inside what `async_trait` expands to,
+                // which no crate here can change.
                 cmd.env(
                     "RUSTFLAGS",
-                    "-Dwarnings -Aclippy::empty_line_after_doc_comments -Aclippy::large_const_arrays",
+                    "-Dwarnings -Aclippy::empty_line_after_doc_comments -Aclippy::large_const_arrays \
+                     -Aclippy::double_must_use",
                 );
                 run_cmd_quietly(&mut cmd)?;
             } else {

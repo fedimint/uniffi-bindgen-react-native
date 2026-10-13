@@ -34,6 +34,8 @@ pub(crate) struct Wasm2BuildArgs {
     pub(crate) no_generate: bool,
 
     /// Opts out of running cargo build for wasm32-unknown-unknown.
+    ///
+    /// The crate then does not have to list `cdylib` in its manifest.
     #[clap(long, conflicts_with_all = ["no_generate"])]
     pub(crate) no_wasm_build: bool,
 
@@ -52,6 +54,7 @@ impl Wasm2BuildArgs {
         let metadata = crate_.metadata()?;
         check_wasm_ready(&metadata)?;
         if !self.no_wasm_build {
+            check_builds_cdylib(&metadata)?;
             self.cargo_build_wasm(
                 &crate_.manifest_path()?,
                 &config.wasm2,
@@ -138,15 +141,12 @@ impl Wasm2BuildArgs {
 
 /// Reject a crate the player cannot load, before `cargo build` fails less
 /// legibly — or worse, succeeds and defers the failure to the first call.
+///
+/// It checks the runtime crate and uniffi's single-threaded feature, which the
+/// module needs however it was built, so it applies to a module built elsewhere
+/// as well. Whether the manifest lists `cdylib` is left to `check_builds_cdylib`.
 fn check_wasm_ready(crate_: &CrateMetadata) -> Result<()> {
     let manifest_path = crate_.manifest_path();
-    if !crate_.builds_cdylib() {
-        bail!(
-            "{manifest_path} does not build a cdylib, which the wasm2 player loads.\n\
-             Add it to the [lib] section:\n\
-             \n    [lib]\n    crate-type = [\"lib\", \"cdylib\"]\n"
-        );
-    }
     if !crate_.has_dependency(RUNTIME_CRATE) {
         bail!(
             "{manifest_path} does not depend on {RUNTIME_CRATE}, which provides the \
@@ -175,6 +175,24 @@ fn check_wasm_ready(crate_: &CrateMetadata) -> Result<()> {
     Ok(())
 }
 
+/// Reject a crate whose manifest does not list `cdylib`, without which the
+/// `cargo build` that `ubrn` runs writes no `.wasm`.
+///
+/// A module built elsewhere is not held to the manifest: its build can ask cargo
+/// for the crate type on the command line (`cargo rustc --crate-type cdylib`),
+/// which keeps a library's dependents from building a `cdylib` they never use.
+fn check_builds_cdylib(crate_: &CrateMetadata) -> Result<()> {
+    if !crate_.builds_cdylib() {
+        let manifest_path = crate_.manifest_path();
+        bail!(
+            "{manifest_path} does not build a cdylib, which the wasm2 player loads.\n\
+             Add it to the [lib] section:\n\
+             \n    [lib]\n    crate-type = [\"lib\", \"cdylib\"]\n"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,14 +208,29 @@ mod tests {
     fn accepts_a_crate_declaring_cdylib_and_the_runtime() {
         // coverall takes the runtime as a `cfg(target_arch = "wasm32")` dep,
         // which is the shape the error message recommends.
-        check_wasm_ready(&metadata_for("fixtures/coverall/Cargo.toml")).unwrap();
+        let md = metadata_for("fixtures/coverall/Cargo.toml");
+        check_wasm_ready(&md).unwrap();
+        check_builds_cdylib(&md).unwrap();
     }
 
     #[test]
     fn rejects_a_crate_that_builds_no_cdylib() {
-        let err = check_wasm_ready(&metadata_for("crates/ubrn_common/Cargo.toml"))
+        let err = check_builds_cdylib(&metadata_for("crates/ubrn_common/Cargo.toml"))
             .expect_err("ubrn_common is a plain lib");
         assert!(err.to_string().contains("cdylib"), "{err}");
+    }
+
+    #[test]
+    fn does_not_hold_a_prebuilt_module_to_the_manifest() {
+        // `check_wasm_ready` also runs for a module built elsewhere, which may
+        // have asked cargo for the `cdylib` on the command line, so a manifest
+        // without it must not be what rejects the crate. ubrn_common is a plain
+        // lib that also lacks the runtime, so it is rejected for that instead.
+        let err = check_wasm_ready(&metadata_for("crates/ubrn_common/Cargo.toml"))
+            .expect_err("ubrn_common does not depend on the runtime")
+            .to_string();
+        assert!(err.contains(RUNTIME_CRATE), "{err}");
+        assert!(!err.contains("cdylib"), "{err}");
     }
 
     #[test]
